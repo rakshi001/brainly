@@ -1,11 +1,11 @@
 import express from 'express';
 import mongoose from 'mongoose';
 import jwt from 'jsonwebtoken';
-import { ContentModel, UserModel } from './db.js';
+import { ContentModel, LinkModel, UserModel } from './db.js';
 import bcrypt from 'bcrypt';
-
 import { JWT_SECRET } from './config.js';
 import { userMiddleware } from './middleware.js';
+import { random } from './utils.js';
 
 const app = express();
 
@@ -34,7 +34,7 @@ app.post('/api/v1/signup', async (req, res) => {
     });
   } catch (e) {
     res.status(411).json({
-      message: 'user already exist',
+      message: `there is a error ${e}`,
     });
   }
 });
@@ -119,9 +119,46 @@ app.delete('/api/v1/content', async (req, res) => {
   }
 });
 
-app.post('/api/v1/brain/share', (req, res) => {});
+app.post('/api/v1/brain/share', userMiddleware, async (req, res) => {
+  const share = req.body.share;
+  if (share) {
+    await LinkModel.create({
+      //@ts-ignore
+      userId: req.userId,
+      hash: random(10),
+    });
+  } else {
+    await LinkModel.deleteOne({
+      //@ts-ignore
+      userId: req.userId,
+    });
+  }
 
-app.get('/api/v1/brain/:sharelink', (req, res) => {});
+  res.json({
+    message: 'Updated Sharable link',
+  });
+});
+
+app.get('/api/v1/brain/:sharelink', async (req, res) => {
+  const hash = req.params.sharelink;
+  const link = await LinkModel.findOne({
+    hash: hash,
+  });
+  if (!link) {
+    res.status(411).json({
+      message: 'Sorry incorrect input',
+    });
+    return;
+  }
+
+  const content = await ContentModel.find({
+    userId: link.userId,
+  });
+
+  const user = await UserModel.findOne({
+    _id: link.userId,
+  });
+});
 
 app.listen(3000, () => {
   console.log('port running on 3000');
